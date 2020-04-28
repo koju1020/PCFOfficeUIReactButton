@@ -2,14 +2,25 @@ import { IInputs, IOutputs } from "./generated/ManifestTypes";
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { ButtonAnchor, IPCFButtonProps } from './PCFButton';
+import { error } from "util";
+import { runInThisContext } from "vm";
+import { number } from "prop-types";
 
 export class PCFOfficeUIReactButton implements ComponentFramework.StandardControl<IInputs, IOutputs> {
-	private theContainer: HTMLDivElement;
+    private theContainer: HTMLDivElement;
+    private _context: ComponentFramework.Context<IInputs>;
+    private notifyOutputChanged: () => void;
 	private props: IPCFButtonProps = {
-		//tableValue: this.numberFacesChanged.bind(this),
 		buttonValue: "",
-		buttonLink: ""
-	}
+        buttonLabel: "",
+        buttonBackgroundColour: "blue",
+        buttonLabelColour: "white",
+        jobstatus: 0,
+        jobstatusValue: "",
+        isChecked: false,
+        isDisabled: true,
+        buttonClicker: this.buttonClicker.bind(this)
+    }
 
 	/**
 	 * Empty constructor.
@@ -26,11 +37,12 @@ export class PCFOfficeUIReactButton implements ComponentFramework.StandardContro
 	 * @param state A piece of data that persists in one session for a single user. Can be set at any point in a controls life cycle by calling 'setControlState' in the Mode interface.
 	 * @param container If a control is marked control-type='standard', it will receive an empty div element within which it can render its content.
 	 */
-	public init(context: ComponentFramework.Context<IInputs>, notifyOutputChanged: () => void, state: ComponentFramework.Dictionary, container: HTMLDivElement) {
+    public init(context: ComponentFramework.Context<IInputs>, notifyOutputChanged: () => void, state: ComponentFramework.Dictionary, container: HTMLDivElement) {
 		// Add control initialization code
 		
 		this.theContainer = container;
-		//this.notifyOutputChanged = notifyOutputChanged;
+        this.notifyOutputChanged = notifyOutputChanged;
+        this._context = context;
 	}
 
 
@@ -40,8 +52,14 @@ export class PCFOfficeUIReactButton implements ComponentFramework.StandardContro
 	 */
 	public updateView(context: ComponentFramework.Context<IInputs>): void {
 		// Add code to update control view
-		this.props.buttonValue = context.parameters.buttonValue.raw!;
-		this.props.buttonLink = context.parameters.buttonLink.raw!;
+        this.props.buttonValue = context.parameters.buttonValue.raw!;
+        this.props.buttonLabel = context.parameters.buttonLabel.raw!;
+        if (context.parameters.buttonBackgroundColour.raw != null) this.props.buttonBackgroundColour = context.parameters.buttonBackgroundColour.raw!;
+        if (context.parameters.buttonLabelColour.raw != null) this.props.buttonLabelColour = context.parameters.buttonLabelColour.raw!; 
+        this.props.jobstatus = context.parameters.jobStatus.raw!;
+        this.props.jobstatusValue = context.parameters.jobStatus.formatted!;
+        this.props.isChecked = this.isChecked(this._context.parameters.jobstatusMapping.raw!);
+        this.props.isDisabled = this.isDisabled(this._context.parameters.jobstatusMapping.raw!);
 		ReactDOM.render(
 			React.createElement(
 				ButtonAnchor,
@@ -49,14 +67,101 @@ export class PCFOfficeUIReactButton implements ComponentFramework.StandardContro
 			),
 			this.theContainer
 		);
-	}
+    }
+
+    /**
+ * Called by the React component when it detects a change in the number of faces shown
+ * @param newValue The newly detected number of faces
+ */
+    private buttonClicker() {
+
+        if (this._context.client.getClient() != 'Mobile') {
+            console.log(this._context.client.getClient());
+            this._context.navigation.openAlertDialog({ text: "This function is only available on mobile. Please set coordinates & timestamp manually", confirmButtonLabel: "Yes" });
+            return;
+        }
+        else {
+
+            this._context.device.getCurrentPosition().then(
+                (loc) => {
+                    this.props.latitude = loc.coords.latitude;
+                    this.props.longitude = loc.coords.longitude;
+                    this.props.timestamp = new Date();
+
+                    this.SetNextStatus();
+                    this.notifyOutputChanged();
+                },
+                (error) => {
+                    this._context.navigation.openErrorDialog({ message: "Please verify if you allowed the Dynamics 365 App to access your location. You can review in 'Settings' > 'Mobile Settings' > 'User Content and Location' enanbled", errorCode: 500, details: error });
+                }
+            );
+        }
+    }
+
+    private SetNextStatus() {
+        switch (this.props.jobstatus) {
+            case JobStatus.NotStarted:
+                this.props.jobstatus = JobStatus.SiteEntered;
+                break;
+            case JobStatus.SiteEntered:
+                this.props.jobstatus = JobStatus.StartedJob;
+                break;
+            case JobStatus.StartedJob:
+                this.props.jobstatus = JobStatus.FinishedJob;
+                break;
+            case JobStatus.FinishedJob:
+                this.props.jobstatus = JobStatus.LeftSite;
+                break;
+            case JobStatus.LeftSite:
+                break;
+            default:
+                break;
+        }
+        this.notifyOutputChanged();
+    }
+
+    private isChecked(statusMapping: number) {
+        if (statusMapping <= this.props.jobstatus) return true;
+        else return false;
+    }
+
+    private isDisabled(statusMapping: number) {
+
+        if (statusMapping == (this.props.jobstatus + 1) || (this.props.jobstatus == 0 && statusMapping == JobStatus.SiteEntered)) return false;
+        else return true;
+    }
+
+    private getCurrentLocation(): Location {
+
+        let loc = new Location();
+        this._context.device.getCurrentPosition().then(
+
+            function (location) {
+                loc.latitude = location.coords.latitude;
+                loc.longitude = location.coords.longitude;
+                loc.timestamp = location.timestamp;
+
+                return loc;
+            }, function (error) {
+                throw error;
+            }
+        );
+        return loc;
+    }
 
 	/** 
 	 * It is called by the framework prior to a control receiving new data. 
 	 * @returns an object based on nomenclature defined in manifest, expecting object[s] for property marked as “bound” or “output”
 	 */
-	public getOutputs(): IOutputs {
-		return {};
+    public getOutputs(): IOutputs {
+        let result: IOutputs = {
+            buttonValue: this.props.buttonValue,
+            jobStatus: this.props.jobstatus,
+            latitude: this.props.latitude,
+            longitude: this.props.longitude,
+            timestamp: this.props.timestamp
+        };
+        return result;
 	}
 
 	/** 
@@ -67,4 +172,27 @@ export class PCFOfficeUIReactButton implements ComponentFramework.StandardContro
 		// Add code to cleanup control if necessary
 		ReactDOM.unmountComponentAtNode(this.theContainer);
 	}
+}
+
+const JobStatus = {
+    NotStarted: 609810000,
+    SiteEntered: 609810001,
+    StartedJob: 609810002,
+    FinishedJob: 609810003,
+    LeftSite: 609810004
+}
+
+class Location
+{
+    public longitude?: number;
+    public latitude?: number;
+    public timestamp?: Date;
+
+    constructor() { }
+}
+
+interface ILocation {
+    longitude?: number;
+    latitude?: number;
+    timestamp?: Date;
 }

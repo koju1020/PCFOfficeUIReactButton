@@ -1,10 +1,23 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest>
-  <control namespace="PCFNamespace" constructor="PCFOfficeUIReactButton" version="0.0.1" display-name-key="PCFOfficeUIReactButton" description-key="PCFOfficeUIReactButton description" control-type="standard">
+  <control namespace="PCFNamespace" constructor="PCFOfficeUIReactButton" version="0.0.28" display-name-key="PCFOfficeUIReactButton" description-key="PCFOfficeUIReactButton description" control-type="standard">
     <property name="buttonValue" display-name-key="buttonValue" description-key="Button_value" of-type="SingleLine.Text" usage="bound" required="true"/>
-    <property name="buttonLink" display-name-key="buttonLink"  description-key="Button_Link" of-type="SingleLine.Text" usage="input" required="true"/>
+    <property name="jobStatus" display-name-key="jobStatus" description-key="Job_status" of-type="OptionSet" usage="bound" required="true"/>
+    <property name="buttonLabel" display-name-key="buttonLabel"  description-key="Button_label" of-type="SingleLine.Text" usage="input" required="true"/>
+    <property name="jobstatusMapping" display-name-key="jobstatusMapping"  description-key="jobstatus_Mapping" of-type="Whole.None" usage="input" required="true"/>
+    <property name="longitude" display-name-key="longitude" description-key="Longitude" of-type="FP" usage="bound" required="true"/>
+    <property name="latitude" display-name-key="latitude" description-key="Latitude" of-type="FP" usage="bound" required="true"/>
+    <property name="timestamp" display-name-key="timestamp" description-key="Timestamp" of-type="DateAndTime.DateAndTime" usage="bound" required="true"/>
+    <property name="buttonBackgroundColour" display-name-key="buttonBackgroundColour"  description-key="Colour scheme for background buttons" of-type="SingleLine.Text" usage="input" required="false"/>
+    <property name="buttonLabelColour" display-name-key="buttonLabelColour"  description-key="Colour scheme for label of button" of-type="SingleLine.Text" usage="input" required="false"/>
     <resources>
       <code path="index.ts" order="1"/>
+      <css path="css/PCFButtonComponent.css" order="1"/>
     </resources>
+    <feature-usage>
+      <uses-feature name="Device.getCurrentPosition" required="true" />
+      <uses-feature name="Utility" required="true" />
+      <uses-feature name="WebAPI" required="true" />
+    </feature-usage>
   </control>
 </manifest>
